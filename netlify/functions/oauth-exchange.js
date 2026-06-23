@@ -3,13 +3,13 @@ const https = require('https');
 function httpsPost(urlStr, data) {
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(urlStr);
-    const body = JSON.stringify(data);
+    const body = Object.keys(data).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(data[k])).join('&');
     const options = {
       hostname: parsedUrl.hostname,
       path: parsedUrl.pathname,
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
         'Content-Length': Buffer.byteLength(body)
       },
       timeout: 10000
