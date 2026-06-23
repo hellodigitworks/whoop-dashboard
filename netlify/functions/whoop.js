@@ -112,11 +112,11 @@ async function fetchFromWhoop() {
     }
 
     // Fetch cycles from Whoop API (v4)
-    const cyclesUrl = 'https://api.prod.whoop.com/developer/v4/physiological_cycles?limit=30&order=desc';
+    const cyclesUrl = 'https://api.prod.whoop.com/developer/v4/physiological_cycles?limit=3650&order=desc';
     const cyclesData = await httpsRequest(cyclesUrl);
 
     // Fetch workouts from Whoop API
-    const workoutsUrl = 'https://api.prod.whoop.com/developer/v4/workouts?limit=30&order=desc';
+    const workoutsUrl = 'https://api.prod.whoop.com/developer/v4/workouts?limit=3650&order=desc';
     const workoutsData = await httpsRequest(workoutsUrl);
 
     return {

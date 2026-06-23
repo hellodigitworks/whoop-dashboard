@@ -22,29 +22,35 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-weight:300;-webkit-font-smoothing:antialiased}
-  body{padding:clamp(20px,5vw,40px);line-height:1.5;max-width:100%}
+  body{padding:clamp(16px,4vw,40px);line-height:1.5}
   ::selection{background:var(--accent);color:#000}
 
-  .top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:28px}
-  h1{font-family:var(--serif);font-weight:400;font-size:clamp(36px,8vw,56px);line-height:0.95;letter-spacing:-0.01em;margin-bottom:8px}
-  .meta{font-size:12px;color:var(--muted);letter-spacing:0.02em}
+  .top{border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:24px}
+  h1{font-family:var(--serif);font-weight:400;font-size:clamp(32px,7vw,52px);line-height:0.95;letter-spacing:-0.01em;margin-bottom:6px}
+  .meta{font-size:11px;color:var(--muted);letter-spacing:0.02em}
 
-  .loading{text-align:center;padding:40px 20px;color:var(--muted)}
-  .error{background:rgba(255,46,0,0.08);border:1px solid rgba(255,46,0,0.3);padding:16px;border-radius:0;margin:20px 0;color:var(--accent);font-size:13px}
+  .error{background:rgba(255,46,0,0.08);border:1px solid rgba(255,46,0,0.3);padding:16px;margin:20px 0;color:var(--accent);font-size:13px}
 
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line-soft);border:1px solid var(--line);margin:32px 0}
-  .card{background:var(--bg);padding:20px 16px}
-  .card .k{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)}
-  .card .v{font-family:var(--serif);font-size:clamp(32px,6vw,42px);line-height:1;margin:12px 0 3px;font-weight:400}
-  .card .v small{font-size:14px;color:var(--muted);margin-left:2px}
-  .card .sub{font-size:11.5px;color:var(--faint);margin-top:8px}
+  /* Apple Watch hero section */
+  .hero{background:rgba(244,241,234,0.05);border:1px solid var(--line);padding:clamp(24px,6vw,48px);margin:28px 0;text-align:center;border-radius:0}
+  .hero .label{font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+  .hero .big{font-family:var(--serif);font-size:clamp(72px,18vw,140px);font-weight:400;line-height:0.95;margin:0}
+  .hero .unit{font-size:clamp(20px,4vw,32px);color:var(--muted);margin-left:4px}
+  .hero .sub{color:var(--faint);font-size:clamp(13px,3vw,16px);margin-top:14px}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--line-soft);border:1px solid var(--line);margin:28px 0}
+  .card{background:var(--bg);padding:clamp(18px,4vw,28px)}
+  .card .k{font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .card .v{font-family:var(--serif);font-size:clamp(42px,10vw,64px);line-height:0.95;margin:8px 0 2px;font-weight:400}
+  .card .v small{font-size:clamp(16px,3vw,24px);color:var(--muted);margin-left:3px}
+  .card .sub{font-size:12px;color:var(--faint);margin-top:10px;line-height:1.4}
   .card .sub b{font-weight:400;color:var(--ink)}
   .card .sub b.up{color:var(--good)}.card .sub b.dn{color:var(--accent)}
 
   section{margin:48px 0;padding:0}
   .shead{margin-bottom:12px}
-  .shead h3{font-family:var(--serif);font-weight:400;font-size:clamp(28px,5vw,32px);letter-spacing:-0.01em}
-  .shead .n{font-size:11px;color:var(--faint);letter-spacing:0.1em;margin-bottom:4px;display:block}
+  .shead h3{font-family:var(--serif);font-weight:400;font-size:clamp(26px,5vw,32px);letter-spacing:-0.01em}
+  .shead .n{font-size:10px;color:var(--faint);letter-spacing:0.1em;margin-bottom:4px;display:block}
   .means{color:var(--muted);font-size:13.5px;line-height:1.6;margin:12px 0 18px}
   .means b{color:var(--ink);font-weight:400}
 
@@ -65,11 +71,14 @@
   .foot b{color:var(--muted);font-weight:400}
 
   @media(max-width:480px){
-    body{padding:16px}
+    body{padding:14px}
     h1{font-size:28px}
+    .hero{padding:32px 16px}
+    .hero .big{font-size:88px}
     .cards{grid-template-columns:repeat(2,1fr)}
     .card{padding:16px 12px}
-    .card .v{font-size:28px}
+    .card .v{font-size:40px}
+    .card .k{font-size:9px}
   }
 </style>
 </head>
@@ -82,6 +91,9 @@
 
 <div id="error"></div>
 <div id="app" style="display:none">
+  <!-- Apple Watch style sleep display -->
+  <div class="hero" id="hero"></div>
+
   <div class="cards" id="cards"></div>
 
   <section>
@@ -164,6 +176,7 @@ function render(data){
   const dateStr=new Date().toISOString().slice(0,10);
   document.getElementById('meta').innerHTML=`<b>${rows.length}</b> cycles · Last updated ${dateStr}`;
 
+  hero(rows[rows.length-1]);
   cards(rows);
   captions(rows);
   lineChart('c-sleep',rows,[
@@ -181,6 +194,16 @@ function render(data){
   woChart('c-wo',data.workouts);
 }
 
+function hero(today){
+  const h=Math.floor(today.asleepMin/60);
+  const m=Math.round(today.asleepMin%60);
+  document.getElementById('hero').innerHTML=`
+    <div class="label">Sleep last night</div>
+    <div class="big">${h}<span class="unit">h</span> ${m}<span class="unit">m</span></div>
+    <div class="sub">Recovery <b>${Math.round(today.recovery)}%</b> · Strain <b>${today.strain?today.strain.toFixed(1):'—'}</b></div>
+  `;
+}
+
 function cards(rows){
   const rec=mean(rows.map(r=>r.recovery));
   const hrv=mean(rows.map(r=>r.hrv));
@@ -193,9 +216,9 @@ function cards(rows){
     {k:'Recovery',v:rec!=null?Math.round(rec):'—',u:'%'},
     {k:'HRV',v:hrv!=null?Math.round(hrv):'—',u:'ms'},
     {k:'RHR',v:rhr!=null?Math.round(rhr):'—',u:'bpm'},
-    {k:'Sleep',v:sl!=null?(sl/60).toFixed(1):'—',u:'h'},
-    {k:'Blood oxygen',v:spo2!=null?spo2.toFixed(1):'—',u:'%'},
-    {k:'Strain',v:strain!=null?Math.round(strain):'—',u:''}
+    {k:'Sleep avg',v:sl!=null?(sl/60).toFixed(1):'—',u:'h'},
+    {k:'Blood O2',v:spo2!=null?spo2.toFixed(1):'—',u:'%'},
+    {k:'Strain avg',v:strain!=null?strain.toFixed(1):'—',u:''}
   ];
   document.getElementById('cards').innerHTML=items.map(it=>`<div class="card"><div class="k">${it.k}</div><div class="v">${it.v}<small>${it.u}</small></div></div>`).join('');
 }
