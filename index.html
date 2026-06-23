@@ -216,9 +216,12 @@ function filterRows(rows){
 async function handleOAuthCallback(){
   const params=new URLSearchParams(window.location.search);
   const code=params.get('code');
+  const state=params.get('state');
   const error=params.get('error');
   if(error){document.getElementById('error').innerHTML=`<div class="error">OAuth error: ${error}</div>`;return false;}
-  if(!code) return false;
+  if(!code||!state) return false;
+  const savedState=sessionStorage.getItem('oauth_state');
+  if(state!==savedState){document.getElementById('error').innerHTML=`<div class="error">OAuth state mismatch</div>`;return false;}
   try{
     const res=await fetch('/.netlify/functions/oauth-exchange',{method:'POST',body:JSON.stringify({code})});
     const result=await res.json();
@@ -240,8 +243,10 @@ async function load(){
       try{
         const cfg=await fetch('/.netlify/functions/config').then(r=>r.json());
         if(!cfg.clientId){document.getElementById('error').innerHTML=`<div class="error">Missing WHOOP_CLIENT_ID in environment</div>`;return;}
+        const state=Math.random().toString(36).substring(7);
+        sessionStorage.setItem('oauth_state',state);
         const scopes='read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement';
-        window.location.href=`https://api.prod.whoop.com/oauth/oauth2/auth?client_id=${cfg.clientId}&redirect_uri=${encodeURIComponent(cfg.redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}`;
+        window.location.href=`https://api.prod.whoop.com/oauth/oauth2/auth?client_id=${cfg.clientId}&redirect_uri=${encodeURIComponent(cfg.redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`;
       }catch(e){
         document.getElementById('error').innerHTML=`<div class="error">Config error: ${e.message}</div>`;
       }
