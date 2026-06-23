@@ -1,5 +1,5 @@
 exports.handler = async (event, context) => {
-  const baseUrl = process.env.URL || 'https://candid-semifreddo-b145eb.netlify.app';
+  const baseUrl = process.env.URL || 'https://whoop-dashboard.netlify.app';
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
