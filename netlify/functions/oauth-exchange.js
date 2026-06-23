@@ -64,12 +64,13 @@ exports.handler = async (event, context) => {
       };
     }
 
+    const baseUrl = process.env.URL || 'https://whoop-dashboard.netlify.app';
     const tokenResponse = await httpsPost('https://api.prod.whoop.com/oauth/oauth2/token', {
       grant_type: 'authorization_code',
       code,
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_uri: 'https://' + (process.env.NETLIFY_SITE_NAME ? process.env.NETLIFY_SITE_NAME + '.netlify.app' : 'whoop-dashboard.netlify.app') + '/callback'
+      redirect_uri: baseUrl + '/callback'
     });
 
     if (tokenResponse.error) {
