@@ -1,11 +1,12 @@
 const https = require('https');
 
-function httpsPost(url, data) {
+function httpsPost(urlStr, data) {
   return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(urlStr);
     const body = JSON.stringify(data);
     const options = {
-      hostname: 'api.prod.whoop.com',
-      path: '/oauth/oauth2/token',
+      hostname: parsedUrl.hostname,
+      path: parsedUrl.pathname,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
