@@ -67,6 +67,16 @@
   #tip b{font-weight:400;color:var(--accent)}
   .hv{stroke:var(--line);stroke-width:1}
 
+  .filters{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-end;margin:28px 0 28px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+  .fgroup label{display:block;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .seg{display:flex;border:1px solid var(--line)}
+  .seg button{background:none;border:none;border-right:1px solid var(--line);color:var(--muted);font-family:var(--sans);font-size:12px;padding:8px 14px;cursor:pointer;letter-spacing:0.02em}
+  .seg button:last-child{border-right:none}
+  .seg button.sel{background:var(--ink);color:#000}
+  select{background:var(--bg);color:var(--ink);border:1px solid var(--line);font-family:var(--sans);font-size:12px;padding:8px 11px;cursor:pointer}
+  .reset{margin-left:auto;background:none;border:none;color:var(--faint);font-family:var(--sans);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;padding-bottom:8px}
+  .reset:hover{color:var(--accent)}
+
   .foot{margin-top:60px;border-top:1px solid var(--line);padding-top:16px;color:var(--faint);font-size:11.5px;line-height:1.6}
   .foot b{color:var(--muted);font-weight:400}
 
@@ -97,6 +107,31 @@
 <div id="app" style="display:none">
   <!-- Apple Watch style sleep display -->
   <div class="hero" id="hero"></div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <div class="fgroup">
+      <label>Time window</label>
+      <div class="seg" id="win">
+        <button data-d="30" class="sel">30 days</button>
+        <button data-d="90">90 days</button>
+        <button data-d="0">All</button>
+      </div>
+    </div>
+    <div class="fgroup">
+      <label>Day of week</label>
+      <select id="wd">
+        <option value="">All days</option>
+        <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+        <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+      </select>
+    </div>
+    <div class="fgroup" id="actwrap" style="display:none">
+      <label>Workout type</label>
+      <select id="act"><option value="">All workouts</option></select>
+    </div>
+    <button class="reset" id="reset">Reset filters</button>
+  </div>
 
   <div class="cards" id="cards"></div>
 
@@ -159,6 +194,25 @@ const NS='http://www.w3.org/2000/svg';
 const num=v=>{const n=parseFloat(v);return isNaN(n)?null:n};
 const mean=a=>{const f=a.filter(x=>x!=null&&!isNaN(x));return f.length?f.reduce((s,x)=>s+x,0)/f.length:null};
 
+let FIL={win:30,wd:'',act:''};
+const WD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+function filterRows(rows){
+  let filtered=rows;
+  if(FIL.win>0){
+    const max=rows[rows.length-1]?.cycleStart?new Date(rows[rows.length-1].cycleStart):new Date();
+    const cut=new Date(max);cut.setDate(cut.getDate()-FIL.win);
+    filtered=filtered.filter(r=>new Date(r.cycleStart)>=cut);
+  }
+  if(FIL.wd){
+    filtered=filtered.filter(r=>{
+      const d=new Date(r.cycleStart);
+      return WD[d.getDay()]===FIL.wd;
+    });
+  }
+  return filtered;
+}
+
 async function handleOAuthCallback(){
   const params=new URLSearchParams(window.location.search);
   const code=params.get('code');
@@ -218,22 +272,60 @@ function render(data){
   const dateStr=new Date().toISOString().slice(0,10);
   document.getElementById('meta').innerHTML=`<b>${rows.length}</b> cycles · Last updated ${dateStr}`;
 
-  hero(rows[rows.length-1]);
-  cards(rows);
-  captions(rows);
-  lineChart('c-sleep',rows,[
+  // Setup workout dropdown
+  if(data.workouts&&data.workouts.length){
+    const types=[...new Set(data.workouts.map(w=>w.activityName).filter(Boolean))].sort();
+    const sel=document.getElementById('act');
+    sel.innerHTML='<option value="">All workouts</option>'+types.map(t=>`<option>${t}</option>`).join('');
+    document.getElementById('actwrap').style.display='';
+  }
+
+  // Setup filter events
+  document.getElementById('win').addEventListener('click',e=>{
+    if(e.target.dataset.d!=null){
+      FIL.win=+e.target.dataset.d;
+      document.querySelectorAll('#win button').forEach(b=>b.classList.toggle('sel',b===e.target));
+      rerender(rows,data.workouts);
+    }
+  });
+  document.getElementById('wd').addEventListener('change',e=>{
+    FIL.wd=e.target.value;
+    rerender(rows,data.workouts);
+  });
+  document.getElementById('act').addEventListener('change',e=>{
+    FIL.act=e.target.value;
+    rerender(rows,data.workouts);
+  });
+  document.getElementById('reset').addEventListener('click',()=>{
+    FIL={win:30,wd:'',act:''};
+    document.querySelectorAll('#win button').forEach(b=>b.classList.toggle('sel',b.dataset.d==='30'));
+    document.getElementById('wd').value='';
+    document.getElementById('act').value='';
+    rerender(rows,data.workouts);
+  });
+
+  rerender(rows,data.workouts);
+}
+
+function rerender(rows,workouts){
+  const filtered=filterRows(rows);
+  if(!filtered.length){document.getElementById('cards').innerHTML='<div class="card"><div class="k">No data</div><div class="sub">No nights match filters.</div></div>';return;}
+  hero(filtered[filtered.length-1]);
+  cards(filtered);
+  captions(filtered);
+  lineChart('c-sleep',filtered,[
     {name:'Hours',get:r=>r.asleepMin?r.asleepMin/60:null,color:'var(--accent)',fmt:v=>v.toFixed(1)+'h'},
     {name:'Performance',get:r=>r.sleepPerf,color:'var(--muted)',w:1.2,op:0.8,fmt:v=>Math.round(v)+'%'}
   ]);
-  lineChart('c-rec',rows,[{name:'Recovery',get:r=>r.recovery,color:'var(--accent)',fmt:v=>Math.round(v)+'%'}]);
-  lineChart('c-hrv',rows,[
+  lineChart('c-rec',filtered,[{name:'Recovery',get:r=>r.recovery,color:'var(--accent)',fmt:v=>Math.round(v)+'%'}]);
+  lineChart('c-hrv',filtered,[
     {name:'HRV',get:r=>r.hrv,color:'var(--accent)',fmt:v=>Math.round(v)+'ms'},
     {name:'RHR',get:r=>r.rhr,color:'var(--muted)',w:1.2,op:0.85,fmt:v=>Math.round(v)+'bpm'}
   ]);
-  stageChart('c-stage',rows);
-  bedChart('c-bed',rows);
-  strainChart('c-strain',rows);
-  woChart('c-wo',data.workouts);
+  stageChart('c-stage',filtered);
+  bedChart('c-bed',filtered);
+  strainChart('c-strain',filtered);
+  woChart('c-wo',workouts,filtered);
 }
 
 function hero(today){
@@ -428,9 +520,16 @@ function strainChart(id,rows){
   put(id,s);
 }
 
-function woChart(id,workouts){
+function woChart(id,workouts,filtered){
   if(!workouts||!workouts.length){document.getElementById('wo-sec').style.display='none';return;}
-  const by={};workouts.forEach(w=>{(by[w.activityName]=by[w.activityName]||[]).push(w);});
+  let ws=workouts;
+  if(FIL.win>0){
+    const max=filtered[filtered.length-1]?.cycleStart?new Date(filtered[filtered.length-1].cycleStart):new Date();
+    const cut=new Date(max);cut.setDate(cut.getDate()-FIL.win);
+    ws=ws.filter(w=>new Date(w.workoutStart)>=cut);
+  }
+  if(FIL.act) ws=ws.filter(w=>w.activityName===FIL.act);
+  const by={};ws.forEach(w=>{(by[w.activityName]=by[w.activityName]||[]).push(w);});
   const data=Object.entries(by).map(([t,arr])=>({t,n:arr.length,strain:mean(arr.map(a=>a.activityStrain))})).sort((a,b)=>b.n-a.n);
   const W=innerWidth<500?innerWidth-32:800;
   const H=Math.max(120,data.length*40+30),pl=100,pr=40,pt=10,pb=20;
