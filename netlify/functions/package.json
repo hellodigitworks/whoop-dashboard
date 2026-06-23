@@ -1,0 +1,6 @@
+{
+  "name": "whoop-functions",
+  "version": "1.0.0",
+  "description": "Netlify functions for Whoop API",
+  "main": "whoop.js"
+}

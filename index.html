@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Whoop — live dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0a;
+    --ink:#f4f1ea;
+    --muted:#8a8782;
+    --faint:#56544f;
+    --line:rgba(244,241,234,0.14);
+    --line-soft:rgba(244,241,234,0.07);
+    --accent:#ff2e00;
+    --good:#9fb89a;
+    --serif:'Instrument Serif',Georgia,serif;
+    --sans:'Inter Tight',-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-weight:300;-webkit-font-smoothing:antialiased}
+  body{padding:clamp(20px,5vw,40px);line-height:1.5;max-width:100%}
+  ::selection{background:var(--accent);color:#000}
+
+  .top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:28px}
+  h1{font-family:var(--serif);font-weight:400;font-size:clamp(36px,8vw,56px);line-height:0.95;letter-spacing:-0.01em;margin-bottom:8px}
+  .meta{font-size:12px;color:var(--muted);letter-spacing:0.02em}
+
+  .loading{text-align:center;padding:40px 20px;color:var(--muted)}
+  .error{background:rgba(255,46,0,0.08);border:1px solid rgba(255,46,0,0.3);padding:16px;border-radius:0;margin:20px 0;color:var(--accent);font-size:13px}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line-soft);border:1px solid var(--line);margin:32px 0}
+  .card{background:var(--bg);padding:20px 16px}
+  .card .k{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)}
+  .card .v{font-family:var(--serif);font-size:clamp(32px,6vw,42px);line-height:1;margin:12px 0 3px;font-weight:400}
+  .card .v small{font-size:14px;color:var(--muted);margin-left:2px}
+  .card .sub{font-size:11.5px;color:var(--faint);margin-top:8px}
+  .card .sub b{font-weight:400;color:var(--ink)}
+  .card .sub b.up{color:var(--good)}.card .sub b.dn{color:var(--accent)}
+
+  section{margin:48px 0;padding:0}
+  .shead{margin-bottom:12px}
+  .shead h3{font-family:var(--serif);font-weight:400;font-size:clamp(28px,5vw,32px);letter-spacing:-0.01em}
+  .shead .n{font-size:11px;color:var(--faint);letter-spacing:0.1em;margin-bottom:4px;display:block}
+  .means{color:var(--muted);font-size:13.5px;line-height:1.6;margin:12px 0 18px}
+  .means b{color:var(--ink);font-weight:400}
+
+  .chart-wrap{border:1px solid var(--line);padding:12px 10px 8px;position:relative}
+  svg{display:block;width:100%;height:auto;overflow:visible}
+  .axis{fill:var(--faint);font-size:10px;font-family:var(--sans)}
+  .grid{stroke:var(--line-soft)}
+  .lbl{fill:var(--muted);font-size:10px;font-family:var(--sans)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);padding:8px 6px 4px}
+  .legend i{display:inline-block;width:12px;height:0;border-top-width:2px;border-top-style:solid;vertical-align:middle;margin-right:6px}
+  .legend i.sq{height:10px;border:none;width:10px;vertical-align:-1px}
+
+  #tip{position:fixed;pointer-events:none;background:#000;border:1px solid var(--line);padding:7px 10px;font-size:11px;color:var(--ink);opacity:0;transition:opacity .08s;z-index:50;white-space:nowrap;line-height:1.4}
+  #tip b{font-weight:400;color:var(--accent)}
+  .hv{stroke:var(--line);stroke-width:1}
+
+  .foot{margin-top:60px;border-top:1px solid var(--line);padding-top:16px;color:var(--faint);font-size:11.5px;line-height:1.6}
+  .foot b{color:var(--muted);font-weight:400}
+
+  @media(max-width:480px){
+    body{padding:16px}
+    h1{font-size:28px}
+    .cards{grid-template-columns:repeat(2,1fr)}
+    .card{padding:16px 12px}
+    .card .v{font-size:28px}
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>Whoop<br>live</h1>
+  <div class="meta" id="meta">Loading your data…</div>
+</div>
+
+<div id="error"></div>
+<div id="app" style="display:none">
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <div class="shead"><span class="n">01</span><h3>Sleep duration</h3></div>
+    <p class="means" id="m-sleep"></p>
+    <div class="chart-wrap"><div id="c-sleep"></div>
+      <div class="legend"><span><i style="border-color:var(--accent)"></i>Hours</span><span><i style="border-color:var(--muted)"></i>Performance %</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead"><span class="n">02</span><h3>Recovery</h3></div>
+    <p class="means" id="m-rec"></p>
+    <div class="chart-wrap"><div id="c-rec"></div></div>
+  </section>
+
+  <section>
+    <div class="shead"><span class="n">03</span><h3>HRV & resting heart rate</h3></div>
+    <p class="means" id="m-hrv"></p>
+    <div class="chart-wrap"><div id="c-hrv"></div>
+      <div class="legend"><span><i style="border-color:var(--accent)"></i>HRV (ms)</span><span><i style="border-color:var(--muted)"></i>Resting HR (bpm)</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead"><span class="n">04</span><h3>Sleep stages</h3></div>
+    <p class="means" id="m-stage"></p>
+    <div class="chart-wrap"><div id="c-stage"></div>
+      <div class="legend"><span><i class="sq" style="background:var(--accent)"></i>Deep</span><span><i class="sq" style="background:#cfc9bd"></i>REM</span><span><i class="sq" style="background:#56544f"></i>Light</span><span><i class="sq" style="background:#2a2926"></i>Awake</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead"><span class="n">05</span><h3>Bedtime</h3></div>
+    <p class="means" id="m-bed"></p>
+    <div class="chart-wrap"><div id="c-bed"></div></div>
+  </section>
+
+  <section>
+    <div class="shead"><span class="n">06</span><h3>Strain</h3></div>
+    <p class="means" id="m-strain"></p>
+    <div class="chart-wrap"><div id="c-strain"></div></div>
+  </section>
+
+  <section id="wo-sec">
+    <div class="shead"><span class="n">07</span><h3>Workouts</h3></div>
+    <p class="means" id="m-wo"></p>
+    <div class="chart-wrap"><div id="c-wo"></div></div>
+  </section>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+"use strict";
+const NS='http://www.w3.org/2000/svg';
+const num=v=>{const n=parseFloat(v);return isNaN(n)?null:n};
+const mean=a=>{const f=a.filter(x=>x!=null&&!isNaN(x));return f.length?f.reduce((s,x)=>s+x,0)/f.length:null};
+
+async function load(){
+  try{
+    const res=await fetch('/.netlify/functions/whoop');
+    if(!res.ok) throw new Error(`API error: ${res.status}`);
+    const data=await res.json();
+    if(data.error) throw new Error(data.error);
+    render(data);
+  }catch(e){
+    document.getElementById('error').innerHTML=`<div class="error">Error loading data: ${e.message}</div>`;
+    console.error(e);
+  }
+}
+
+function render(data){
+  const rows=data.cycles.sort((a,b)=>new Date(a.cycleStart)-new Date(b.cycleStart));
+  if(!rows.length){document.getElementById('meta').textContent='No data.';return;}
+
+  document.getElementById('app').style.display='block';
+  const dateStr=new Date().toISOString().slice(0,10);
+  document.getElementById('meta').innerHTML=`<b>${rows.length}</b> cycles · Last updated ${dateStr}`;
+
+  cards(rows);
+  captions(rows);
+  lineChart('c-sleep',rows,[
+    {name:'Hours',get:r=>r.asleepMin?r.asleepMin/60:null,color:'var(--accent)',fmt:v=>v.toFixed(1)+'h'},
+    {name:'Performance',get:r=>r.sleepPerf,color:'var(--muted)',w:1.2,op:0.8,fmt:v=>Math.round(v)+'%'}
+  ]);
+  lineChart('c-rec',rows,[{name:'Recovery',get:r=>r.recovery,color:'var(--accent)',fmt:v=>Math.round(v)+'%'}]);
+  lineChart('c-hrv',rows,[
+    {name:'HRV',get:r=>r.hrv,color:'var(--accent)',fmt:v=>Math.round(v)+'ms'},
+    {name:'RHR',get:r=>r.rhr,color:'var(--muted)',w:1.2,op:0.85,fmt:v=>Math.round(v)+'bpm'}
+  ]);
+  stageChart('c-stage',rows);
+  bedChart('c-bed',rows);
+  strainChart('c-strain',rows);
+  woChart('c-wo',data.workouts);
+}
+
+function cards(rows){
+  const rec=mean(rows.map(r=>r.recovery));
+  const hrv=mean(rows.map(r=>r.hrv));
+  const rhr=mean(rows.map(r=>r.rhr));
+  const sl=mean(rows.map(r=>r.asleepMin));
+  const spo2=mean(rows.map(r=>r.spo2));
+  const strain=mean(rows.map(r=>r.strain));
+
+  const items=[
+    {k:'Recovery',v:rec!=null?Math.round(rec):'—',u:'%'},
+    {k:'HRV',v:hrv!=null?Math.round(hrv):'—',u:'ms'},
+    {k:'RHR',v:rhr!=null?Math.round(rhr):'—',u:'bpm'},
+    {k:'Sleep',v:sl!=null?(sl/60).toFixed(1):'—',u:'h'},
+    {k:'Blood oxygen',v:spo2!=null?spo2.toFixed(1):'—',u:'%'},
+    {k:'Strain',v:strain!=null?Math.round(strain):'—',u:''}
+  ];
+  document.getElementById('cards').innerHTML=items.map(it=>`<div class="card"><div class="k">${it.k}</div><div class="v">${it.v}<small>${it.u}</small></div></div>`).join('');
+}
+
+function captions(rows){
+  const perf=mean(rows.map(r=>r.sleepPerf));
+  const asleep=mean(rows.map(r=>r.asleepMin));
+  const lateN=rows.filter(r=>r.sleepOnset&&new Date(r.sleepOnset).getHours()>=1&&new Date(r.sleepOnset).getHours()<11).length;
+  const deep=mean(rows.map(r=>r.deep));
+  const rem=mean(rows.map(r=>r.rem));
+  const rec=mean(rows.map(r=>r.recovery));
+  const hrv=mean(rows.map(r=>r.hrv));
+  const rhr=mean(rows.map(r=>r.rhr));
+  const strain=mean(rows.map(r=>r.strain));
+  const tot=(deep||0)+(rem||0)+(rows[0].light||0);
+
+  document.getElementById('m-sleep').innerHTML=`You average <b>${asleep?(asleep/60).toFixed(1):'—'} hours</b> asleep. Sleep performance is <b>${perf?Math.round(perf):'—'}%</b>. More sleep, better recovery.`;
+  document.getElementById('m-rec').innerHTML=`Recovery is your daily readiness out of 100. You average <b>${rec?Math.round(rec):'—'}%</b>. Above 67 means you can push. Below that, take it easier.`;
+  document.getElementById('m-hrv').innerHTML=`HRV up and resting heart rate down = well recovered. Your window average HRV is <b>${hrv?Math.round(hrv):'—'}ms</b>, resting HR is <b>${rhr?Math.round(rhr):'—'}bpm</b>.`;
+  document.getElementById('m-stage').innerHTML=tot?`Deep sleep repairs your body, REM repairs your mind. You sit around <b>${Math.round(deep/tot*100)}% deep</b> and <b>${Math.round(rem/tot*100)}% REM</b>. These shift mostly by total sleep time, not effort.`:'No sleep data.';
+  document.getElementById('m-bed').innerHTML=`Each dot is one night's bedtime. Orange dots are after 1am. In this window <b>${lateN}</b> of <b>${rows.filter(r=>r.sleepOnset).length}</b> nights were late. Scattered bedtimes drift your clock.`;
+  document.getElementById('m-strain').innerHTML=`Strain is how much a day taxed your body, out of 21. You average <b>${strain?Math.round(strain*10)/10:'—'}</b> per day. Balance high strain with recovery days.`;
+  document.getElementById('m-wo').innerHTML=`Your workouts and how hard they hit. Strain under 5 is easy, 5-10 is moderate, 10+ is hard.`;
+
+  const spo2=mean(rows.map(r=>r.spo2));
+  document.getElementById('foot').innerHTML=`<b>This window:</b> ${rows.length} nights · recovery ${rec?Math.round(rec):'—'}% · HRV ${hrv?Math.round(hrv):'—'}ms · RHR ${rhr?Math.round(rhr):'—'}bpm · sleep ${asleep?(asleep/60).toFixed(1):'—'}h · blood oxygen ${spo2?spo2.toFixed(1):'—'}%.`;
+}
+
+function svg(w,h){const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox',`0 0 ${w} ${h}`);s.setAttribute('preserveAspectRatio','none');return s}
+function el(tag,attrs){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e}
+function put(id,node){document.getElementById(id).innerHTML='';document.getElementById(id).appendChild(node)}
+const tip=document.getElementById('tip');
+function showTip(x,y,html){tip.innerHTML=html;tip.style.left=Math.min(x+14,innerWidth-160)+'px';tip.style.top=(y-10)+'px';tip.style.opacity=1}
+function hideTip(){tip.style.opacity=0}
+
+function lineChart(id,rows,series){
+  const W=innerWidth<500?innerWidth-32:800;
+  const H=240,pl=36,pr=36,pt=14,pb=28;
+  const s=svg(W,H);
+  const xs=rows.map((_,i)=>i);
+  const X=i=>pl+(xs.length<2?0.5:(i/(xs.length-1)))*(W-pl-pr);
+  series.forEach(se=>{
+    const vals=rows.map(se.get).filter(v=>v!=null);
+    se.min=se.fixMin!=null?se.fixMin:Math.min(...vals);
+    se.max=Math.max(...vals);
+    if(se.min===se.max){se.max+=1;se.min-=1;}
+    se.Y=v=>pt+(1-(v-se.min)/(se.max-se.min))*(H-pt-pb);
+  });
+  const g0=series[0];
+  for(let t=0;t<=3;t++){
+    const v=g0.min+(g0.max-g0.min)*t/3;
+    const y=g0.Y(v);
+    s.appendChild(el('line',{x1:pl,x2:W-pr,y1:y,y2:y,class:'grid'}));
+    const tx=el('text',{x:pl-6,y:y+3,class:'axis','text-anchor':'end'});tx.textContent=Math.round(v);s.appendChild(tx);
+  }
+  if(series[1]){
+    for(let t=0;t<=3;t++){const v=series[1].min+(series[1].max-series[1].min)*t/3;const y=series[1].Y(v);
+      const tx=el('text',{x:W-pr+6,y:y+3,class:'axis','text-anchor':'start'});tx.textContent=Math.round(v);s.appendChild(tx);}
+  }
+  const ticks=Math.min(5,rows.length);
+  for(let t=0;t<ticks;t++){
+    const i=Math.round(t*(rows.length-1)/(Math.max(1,ticks-1)));
+    const d=new Date(rows[i].cycleStart);
+    const tx=el('text',{x:X(i),y:H-8,class:'axis','text-anchor':'middle'});
+    tx.textContent=(d.getMonth()+1)+'/'+d.getDate();s.appendChild(tx);
+  }
+  series.forEach(se=>{
+    let dstr='',started=false;
+    rows.forEach((r,i)=>{const v=se.get(r);if(v==null)return;dstr+=(started?'L':'M')+X(i)+' '+se.Y(v)+' ';started=true;});
+    s.appendChild(el('path',{d:dstr,fill:'none',stroke:se.color,'stroke-width':se.w||1.4,'stroke-linejoin':'round','stroke-linecap':'round',opacity:se.op||1}));
+  });
+  const guide=el('line',{class:'hv',y1:pt,y2:H-pb,opacity:0});s.appendChild(guide);
+  const hit=el('rect',{x:pl,y:0,width:W-pl-pr,height:H,fill:'transparent'});s.appendChild(hit);
+  hit.addEventListener('mousemove',ev=>{
+    const rect=s.getBoundingClientRect();
+    const px=(ev.clientX-rect.left)/rect.width*W;
+    let i=Math.round((px-pl)/(W-pl-pr)*(rows.length-1));i=Math.max(0,Math.min(rows.length-1,i));
+    guide.setAttribute('x1',X(i));guide.setAttribute('x2',X(i));guide.setAttribute('opacity',1);
+    const r=rows[i],d=new Date(r.cycleStart);
+    let html=`<b>${(d.getMonth()+1)}/${d.getDate()}</b><br>`;
+    html+=series.map(se=>{const v=se.get(r);return v==null?'':`${se.name}: ${se.fmt?se.fmt(v):Math.round(v)}`;}).filter(Boolean).join('<br>');
+    showTip(ev.clientX,ev.clientY,html);
+  });
+  hit.addEventListener('mouseleave',()=>{guide.setAttribute('opacity',0);hideTip();});
+  put(id,s);
+}
+
+function stageChart(id,rows){
+  const W=innerWidth<500?innerWidth-32:800;
+  const H=180,pl=30,pr=14,pt=12,pb=28;
+  const buckets=rows.map(r=>({label:(new Date(r.cycleStart).getMonth()+1)+'/'+(new Date(r.cycleStart).getDate()),d:new Date(r.cycleStart),deep:r.deep,rem:r.rem,light:r.light,awake:r.awake}));
+  const maxT=Math.max(...buckets.map(b=>(b.deep||0)+(b.rem||0)+(b.light||0)+(b.awake||0)),1);
+  const s=svg(W,H);
+  for(let t=0;t<=3;t++){const v=maxT*t/3;const y=pt+(1-t/3)*(H-pt-pb);s.appendChild(el('line',{x1:pl,x2:W-pr,y1:y,y2:y,class:'grid'}));const tx=el('text',{x:pl-6,y:y+3,class:'axis','text-anchor':'end'});tx.textContent=Math.round(v/60)+'h';s.appendChild(tx);}
+  const bw=(W-pl-pr)/buckets.length, gap=Math.min(4,bw*0.2);
+  const cols={deep:'#ff2e00',rem:'#cfc9bd',light:'#56544f',awake:'#2a2926'};
+  buckets.forEach((b,i)=>{
+    const x=pl+i*bw+gap/2, w=bw-gap; let y=H-pb;
+    ['awake','light','rem','deep'].forEach(stg=>{
+      const val=b[stg]||0;const h=val/maxT*(H-pt-pb);y-=h;
+      const rect=el('rect',{x,y,width:w,height:Math.max(0,h),fill:cols[stg]});
+      rect.addEventListener('mousemove',ev=>showTip(ev.clientX,ev.clientY,`<b>${b.label}</b><br>Deep ${Math.round(b.deep||0)}m · REM ${Math.round(b.rem||0)}m<br>Light ${Math.round(b.light||0)}m · Awake ${Math.round(b.awake||0)}m`));
+      rect.addEventListener('mouseleave',hideTip);
+      s.appendChild(rect);
+    });
+  });
+  const step=Math.ceil(buckets.length/6);
+  buckets.forEach((b,i)=>{if(i%step===0){const tx=el('text',{x:pl+i*bw+bw/2,y:H-8,class:'axis','text-anchor':'middle'});tx.textContent=b.label;s.appendChild(tx);}});
+  put(id,s);
+}
+
+function bedChart(id,rows){
+  const W=innerWidth<500?innerWidth-32:800;
+  const H=200,pl=40,pr=14,pt=14,pb=28;
+  const s=svg(W,H);
+  const lo=120, hi=720;
+  const Y=m=>pt+((m-lo)/(hi-lo))*(H-pt-pb);
+  for(let hr=20;hr<=28;hr+=4){const m=(hr-18)*60;const y=Y(m);s.appendChild(el('line',{x1:pl,x2:W-pr,y1:y,y2:y,class:'grid'}));const lab=((hr%24)).toString().padStart(2,'0')+':00';const tx=el('text',{x:pl-6,y:y+3,class:'axis','text-anchor':'end'});tx.textContent=lab;s.appendChild(tx);}
+  const valid=rows.filter(r=>r.sleepOnset);
+  const X=i=>pl+(valid.length<2?0.5:i/(valid.length-1))*(W-pl-pr);
+  const ym=Y((25-18)*60);s.appendChild(el('line',{x1:pl,x2:W-pr,y1:ym,y2:ym,stroke:'var(--accent)','stroke-dasharray':'2 3','stroke-width':0.8,opacity:0.5}));
+  valid.forEach((r,i)=>{
+    let mins=new Date(r.sleepOnset).getHours()*60+new Date(r.sleepOnset).getMinutes();
+    let after=mins-1080;if(after<-180)after+=1440;
+    if(after<lo)after=lo;if(after>hi)after=hi;
+    const late=(new Date(r.sleepOnset).getHours()>=1&&new Date(r.sleepOnset).getHours()<11);
+    const c=el('circle',{cx:X(i),cy:Y(after),r:2.5,fill:late?'var(--accent)':'var(--muted)','fill-opacity':0.7});
+    const d=new Date(r.cycleStart);
+    c.addEventListener('mousemove',ev=>showTip(ev.clientX,ev.clientY,`<b>${(d.getMonth()+1)}/${d.getDate()}</b><br>Asleep at ${new Date(r.sleepOnset).getHours().toString().padStart(2,'0')}:${new Date(r.sleepOnset).getMinutes().toString().padStart(2,'0')}<br>Recovery ${r.recovery!=null?Math.round(r.recovery)+'%':'—'}`));
+    c.addEventListener('mouseleave',hideTip);
+    s.appendChild(c);
+  });
+  put(id,s);
+}
+
+function strainChart(id,rows){
+  const W=innerWidth<500?innerWidth-32:800;
+  const H=200,pl=36,pr=36,pt=14,pb=28;
+  const s=svg(W,H);
+  const strains=rows.map(r=>r.strain).filter(v=>v!=null);
+  const mx=Math.max(...strains,10);
+  const Y=v=>pt+(1-v/mx)*(H-pt-pb);
+  for(let t=0;t<=3;t++){const v=mx*t/3;const y=Y(v);s.appendChild(el('line',{x1:pl,x2:W-pr,y1:y,y2:y,class:'grid'}));const tx=el('text',{x:pl-6,y:y+3,class:'axis','text-anchor':'end'});tx.textContent=v.toFixed(0);s.appendChild(tx);}
+  const ticks=Math.min(5,rows.length);
+  for(let t=0;t<ticks;t++){
+    const i=Math.round(t*(rows.length-1)/(Math.max(1,ticks-1)));
+    const d=new Date(rows[i].cycleStart);
+    const tx=el('text',{x:pl+(i/(rows.length-1))*(W-pl-pr),y:H-8,class:'axis','text-anchor':'middle'});
+    tx.textContent=(d.getMonth()+1)+'/'+d.getDate();s.appendChild(tx);
+  }
+  rows.forEach((r,i)=>{
+    if(r.strain==null)return;
+    const x=pl+(i/(rows.length-1))*(W-pl-pr);
+    const y=Y(r.strain);
+    const c=el('circle',{cx:x,cy:y,r:2,fill:'var(--accent)'});
+    c.addEventListener('mousemove',ev=>{
+      const d=new Date(r.cycleStart);
+      showTip(ev.clientX,ev.clientY,`<b>${(d.getMonth()+1)}/${d.getDate()}</b><br>Strain ${r.strain.toFixed(1)}`);
+    });
+    c.addEventListener('mouseleave',hideTip);
+    s.appendChild(c);
+  });
+  let dstr='';rows.forEach((r,i)=>{if(r.strain!=null){const x=pl+(i/(rows.length-1))*(W-pl-pr);dstr+=(dstr?'L':'M')+x+' '+Y(r.strain)+' ';}});
+  s.appendChild(el('path',{d:dstr,fill:'none',stroke:'var(--accent)','stroke-width':1.2,'stroke-linejoin':'round','stroke-linecap':'round'}));
+  put(id,s);
+}
+
+function woChart(id,workouts){
+  if(!workouts||!workouts.length){document.getElementById('wo-sec').style.display='none';return;}
+  const by={};workouts.forEach(w=>{(by[w.activityName]=by[w.activityName]||[]).push(w);});
+  const data=Object.entries(by).map(([t,arr])=>({t,n:arr.length,strain:mean(arr.map(a=>a.activityStrain))})).sort((a,b)=>b.n-a.n);
+  const W=innerWidth<500?innerWidth-32:800;
+  const H=Math.max(120,data.length*40+30),pl=100,pr=40,pt=10,pb=20;
+  const mx=Math.max(...data.map(d=>d.n),3);
+  const s=svg(W,H);
+  const bh=(H-pt-pb)/data.length;
+  data.forEach((d,i)=>{
+    const y=pt+i*bh+bh*0.16,h=bh*0.68,w=(d.n/mx)*(W-pl-pr);
+    const rect=el('rect',{x:pl,y,width:w,height:h,fill:'var(--ink)'});
+    rect.addEventListener('mousemove',ev=>showTip(ev.clientX,ev.clientY,`<b>${d.t}</b><br>${d.n} sessions · strain ${d.strain?d.strain.toFixed(1):'—'}`));
+    rect.addEventListener('mouseleave',hideTip);
+    s.appendChild(rect);
+    const lab=el('text',{x:pl-8,y:y+h/2+3,class:'axis','text-anchor':'end'});lab.textContent=d.t;s.appendChild(lab);
+    const val=el('text',{x:pl+w+8,y:y+h/2+3,class:'lbl'});val.textContent=d.n+'  ·  '+d.strain.toFixed(1);s.appendChild(val);
+  });
+  put(id,s);
+}
+
+load();
+</script>
+</body>
+</html>
