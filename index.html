@@ -90,6 +90,10 @@
 </div>
 
 <div id="error"></div>
+<div id="auth" style="display:none;text-align:center;padding:40px;color:var(--muted)">
+  <p style="margin-bottom:20px">Connect your Whoop account to see live data.</p>
+  <button id="connectBtn" style="background:var(--accent);color:#000;border:none;padding:12px 24px;font-family:var(--sans);font-weight:400;cursor:pointer;font-size:13px;letter-spacing:0.02em">Connect Whoop</button>
+</div>
 <div id="app" style="display:none">
   <!-- Apple Watch style sleep display -->
   <div class="hero" id="hero"></div>
@@ -155,18 +159,56 @@ const NS='http://www.w3.org/2000/svg';
 const num=v=>{const n=parseFloat(v);return isNaN(n)?null:n};
 const mean=a=>{const f=a.filter(x=>x!=null&&!isNaN(x));return f.length?f.reduce((s,x)=>s+x,0)/f.length:null};
 
-async function load(){
+async function handleOAuthCallback(){
+  const params=new URLSearchParams(window.location.search);
+  const code=params.get('code');
+  const error=params.get('error');
+  if(error){document.getElementById('error').innerHTML=`<div class="error">OAuth error: ${error}</div>`;return false;}
+  if(!code) return false;
   try{
-    const res=await fetch('/.netlify/functions/whoop');
+    const res=await fetch('/.netlify/functions/oauth-exchange',{method:'POST',body:JSON.stringify({code})});
+    const result=await res.json();
+    if(result.error) throw new Error(result.error);
+    localStorage.setItem('whoop_token',result.access_token);
+    window.history.replaceState({},'','/');
+    return true;
+  }catch(e){
+    document.getElementById('error').innerHTML=`<div class="error">Token exchange error: ${e.message}</div>`;
+    return false;
+  }
+}
+
+async function load(){
+  const token=localStorage.getItem('whoop_token');
+  if(!token){
+    document.getElementById('auth').style.display='block';
+    document.getElementById('connectBtn').onclick=async ()=>{
+      try{
+        const cfg=await fetch('/.netlify/functions/config').then(r=>r.json());
+        if(!cfg.clientId){document.getElementById('error').innerHTML=`<div class="error">Missing WHOOP_CLIENT_ID in environment</div>`;return;}
+        const scopes='read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement';
+        window.location.href=`https://api.prod.whoop.com/oauth/oauth2/auth?client_id=${cfg.clientId}&redirect_uri=${encodeURIComponent(cfg.redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}`;
+      }catch(e){
+        document.getElementById('error').innerHTML=`<div class="error">Config error: ${e.message}</div>`;
+      }
+    };
+    return;
+  }
+  try{
+    const res=await fetch('/.netlify/functions/whoop',{headers:{'Authorization':`Bearer ${token}`}});
     if(!res.ok) throw new Error(`API error: ${res.status}`);
     const data=await res.json();
     if(data.error) throw new Error(data.error);
+    document.getElementById('auth').style.display='none';
     render(data);
   }catch(e){
     document.getElementById('error').innerHTML=`<div class="error">Error loading data: ${e.message}</div>`;
     console.error(e);
   }
 }
+
+if(handleOAuthCallback()) setTimeout(load,500);
+else load();
 
 function render(data){
   const rows=data.cycles.sort((a,b)=>new Date(a.cycleStart)-new Date(b.cycleStart));

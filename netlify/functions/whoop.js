@@ -83,29 +83,41 @@ function httpsRequest(url) {
   });
 }
 
-async function fetchFromWhoop() {
+function httpsRequestWithAuth(url, token) {
+  return new Promise((resolve, reject) => {
+    https.get(url, {
+      timeout: 10000,
+      headers: { 'Authorization': 'Bearer ' + token }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error('Invalid JSON response'));
+        }
+      });
+    }).on('error', reject).on('timeout', function() {
+      this.destroy();
+      reject(new Error('Request timeout'));
+    });
+  });
+}
+
+async function fetchFromWhoop(token) {
   try {
-    const clientId = process.env.WHOOP_CLIENT_ID;
-    const clientSecret = process.env.WHOOP_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-      // Return mock data if no credentials
-      return mockData;
-    }
-
-    // Get access token (placeholder — implement actual OAuth flow)
-    const token = process.env.WHOOP_ACCESS_TOKEN;
     if (!token) {
       return mockData;
     }
 
-    // Fetch cycles from Whoop API (v4)
+    // Fetch cycles from Whoop API (v4) with token
     const cyclesUrl = 'https://api.prod.whoop.com/developer/v4/physiological_cycles?limit=3650&order=desc';
-    const cyclesData = await httpsRequest(cyclesUrl);
+    const cyclesData = await httpsRequestWithAuth(cyclesUrl, token);
 
     // Fetch workouts from Whoop API
     const workoutsUrl = 'https://api.prod.whoop.com/developer/v4/workouts?limit=3650&order=desc';
-    const workoutsData = await httpsRequest(workoutsUrl);
+    const workoutsData = await httpsRequestWithAuth(workoutsUrl, token);
 
     return {
       cycles: cyclesData.records || [],
@@ -113,14 +125,14 @@ async function fetchFromWhoop() {
     };
   } catch (e) {
     console.error('Whoop API error:', e.message);
-    // Fall back to mock data on error
     return mockData;
   }
 }
 
 exports.handler = async (event, context) => {
   try {
-    const data = await fetchFromWhoop();
+    const token = event.headers.authorization ? event.headers.authorization.replace('Bearer ', '') : null;
+    const data = await fetchFromWhoop(token);
 
     return {
       statusCode: 200,
